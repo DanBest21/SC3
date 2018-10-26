@@ -38,7 +38,9 @@ public class BB_Interpreter
 
 		while (linesIterator.hasNext())
 		{
-			if (!linesIterator.next().endsWith(";"))
+			String line = linesIterator.next();
+			
+			if (!line.endsWith(";") && !isComment(line))
 			{
 				missingSemicolons.add(i);
 			}
@@ -76,6 +78,74 @@ public class BB_Interpreter
 		}
 	}
 	
+	// Method which tries to parse a string value as an integer, and returns a Boolean based on whether or not this is successful.
+	private static Boolean isInteger(String value)
+	{
+		try
+		{
+			Integer.parseInt(value);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			return false;
+		}
+	}
+	
+	// Function that executes an addition, subtraction, multiplication or division operation on two variables.
+	private static void executeOperation(String[] elements)
+	{
+		String resultVar = elements[1];
+		String var1 = elements[3];
+		String var2 = elements[5];
+		String operator = elements[4];
+		Integer result;
+		Integer value1;
+		Integer value2;
+		
+		// Get the two integer values of the operation by figuring out how to parse it (i.e. is it already a value or a variable that needs to be retrieved?).
+		if (isInteger(var1))
+		{
+			value1 = Integer.parseInt(var1);
+		}
+		else
+		{
+			value1 = variableList.get(var1);
+		}
+			
+		if (isInteger(var2))
+		{
+			value2 = Integer.parseInt(var2);
+		}
+		else
+		{
+			value2 = variableList.get(var2);
+		}
+		
+		// Based on the String operator, perform the operation that corresponds to that operator.
+		switch (operator)
+		{
+			case "+":
+				result = value1 + value2;
+				break;
+			case "-":
+				result = value1 - value2;
+				break;
+			case "*":
+				result = value1 * value2;
+				break;
+			case "/":
+				result = value1 / value2;
+				break;
+			default:
+				System.err.println("Error: The line \"" + elements.toString() + "\" failed to calculate.");
+				return;
+		}
+		
+		variableList.put(resultVar, result);
+		System.out.println("Variable List: " + variableList);
+	}
+	
 	// Core function that reads and interprets each line.
 	// Takes two parameters: the line start number and a Boolean to indicate if it is recursive.
 	private static void readFile(int lineStart, Boolean isRecursive)
@@ -93,6 +163,7 @@ public class BB_Interpreter
 		}
 		
 		Boolean skipToWhileEnd = false;
+		Boolean skipIfStatement = false;
 		Boolean nestedLoop = false;
 		
 		int endsToIgnore = 0; 
@@ -105,14 +176,15 @@ public class BB_Interpreter
 			
 			if (isComment(line))
 			{
+				i++;
 				continue;
 			}
 			
 			// Separate the line into an array of words using the split and substring functions (using trim to get rid of white-space).
 			String[] words = line.substring(0, line.length() - 1).trim().split("\\s+");
 			
-			// If the length isn't 1, 2 or 5, then it's an invalid command.
-			if ((words.length != 1) && (words.length != 2) && (words.length != 5))
+			// If the length is smaller than 1 word, or larger than 6, then it's an invalid command.
+			if ((words.length < 1) || (words.length > 6))
 			{
 				System.err.println("Error: Line " + i + " contains an invalid command.");
 				System.exit(1);
@@ -128,7 +200,7 @@ public class BB_Interpreter
 				variable = words[1];
 			}
 			
-			int endValue;
+			int value;
 			
 			// If the variable doesn't currently exist in the global variableList variable, then add it as 0.
 			if (!variableList.containsKey(variable) && variable != null)
@@ -142,7 +214,7 @@ public class BB_Interpreter
 				// In the case of the clear command:
 				case "clear":
 					// If we need to skip to the end of the while loop, then ignore this command.
-					if (!skipToWhileEnd)
+					if (!skipToWhileEnd && !skipIfStatement)
 					{
 						// Set the variable to 0 in the variableList and print it.
 						variableList.put(variable, 0);			
@@ -154,7 +226,7 @@ public class BB_Interpreter
 				// In the case of the incr command:
 				case "incr":
 					// If we need to skip to the end of the while loop, then ignore this command.
-					if (!skipToWhileEnd)
+					if (!skipToWhileEnd && !skipIfStatement)
 					{
 						// Increase the variable by 1 in the variableList and print it.
 						variableList.put(variable, variableList.get(variable) + 1);
@@ -166,7 +238,7 @@ public class BB_Interpreter
 				// In the case of the decr command:
 				case "decr":
 					// If we need to skip to the end of the while loop, then ignore this command.
-					if (!skipToWhileEnd)
+					if (!skipToWhileEnd && !skipIfStatement)
 					{
 						// Decrease the variable by 1 in the variableList and print it.
 						variableList.put(variable, variableList.get(variable) - 1);
@@ -177,18 +249,22 @@ public class BB_Interpreter
 				
 				// In the case of the while command:
 				case "while":
+					if (skipIfStatement)
+					{
+						break;
+					}
 					// If we want to skip to the while end, and this isn't a nested loop, then count the while command so we know how many end statements to ignore.
-					if (skipToWhileEnd && !nestedLoop)
+					else if (skipToWhileEnd && !nestedLoop)
 					{
 						endsToIgnore++;
 						break;
 					}
 					
 					// Get the end value which triggers the end of the while loop.
-					endValue = Integer.parseInt(words[3]);
+					value = Integer.parseInt(words[3]);
 					
 					// If the variable is currently set to the end value, then we want to skip to the end of the while loop and ignore any commands nested inside of it.
-					if (variableList.get(variable) == endValue)
+					if (variableList.get(variable) == value)
 					{	
 						skipToWhileEnd = true;
 					}
@@ -219,7 +295,11 @@ public class BB_Interpreter
 					break;
 				
 				// In the case of the end command:
-				case "end":	
+				case "end":
+					if (skipIfStatement)
+					{
+						break;
+					}
 					// If we are ignoring end statements that we aren't looking for, simply count this as one and continue iterating.
 					if (endsToIgnore > 0)
 					{
@@ -266,6 +346,98 @@ public class BB_Interpreter
 					}
 					
 					break;
+				
+				// In the case of the set command:
+				case "set":
+					if (!skipToWhileEnd && !skipIfStatement)
+					{
+						// If the words[] length is 6, then this is an operation and should be handled accordingly.
+						if (words.length == 6)
+						{
+							executeOperation(words);
+						}
+						// Otherwise, just set the variable to the value passed with the set statement.
+						else
+						{
+							value = Integer.parseInt(words[3]);
+							variableList.put(variable, value);
+							System.out.println("Variable List: " + variableList);
+						}
+					}
+					
+					break;
+				
+				// In the case of the if command:
+				case "if":				
+					if (skipToWhileEnd || skipIfStatement)
+					{
+						break;
+					}
+					
+					// If this is a not statement, then check that the variable doesn't equal the value/variable passed.
+					if (words[3].equals("not"))
+					{
+						if (isInteger(words[4]))
+						{
+							value = Integer.parseInt(words[4]); 
+						}
+						else
+						{
+							value = variableList.get(words[4]);
+						}
+						
+						if (variableList.get(variable) != value)
+						{
+							skipIfStatement = false;
+						}
+						else
+						{
+							skipIfStatement = true;
+						}
+					}
+					// Else, this is a normal if statement, and we should check if the value is the same.
+					else
+					{
+						if (isInteger(words[3]))
+						{
+							value = Integer.parseInt(words[3]); 
+						}
+						else
+						{
+							value = variableList.get(words[3]);
+						}
+						
+						if (variableList.get(variable) == value)
+						{
+							skipIfStatement = false;
+						}
+						else
+						{
+							skipIfStatement = true;
+						}
+					}
+					
+					break;
+				
+				case "else":
+					if (skipToWhileEnd)
+					{
+						break;
+					}
+					
+					// Execute the else statement if the if statement was skipped, otherwise skip it.
+					skipIfStatement = !skipIfStatement;
+					break;
+					
+				case "next":
+					if (skipToWhileEnd)
+					{
+						break;
+					}
+					
+					// Set that the If/Else statement is now finished.
+					skipIfStatement = false;
+					break;
 			}
 			
 			// Increase the i tracker by 1.
@@ -273,6 +445,7 @@ public class BB_Interpreter
 		}
 	}
 	
+	// Function that initially loads the file.
 	private static void loadFile()
 	{
 		// Try to open a BufferedReader to the file path.
