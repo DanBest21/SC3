@@ -1,0 +1,20 @@
+incr X;
+// This is a comment.
+/*
+set F to 1 + 1
+set X to 5 + 10;
+*/
+set Y to 2 * 2;
+set Z to X * Y;
+set F to 5;
+while X not 25 do;
+	incr X;
+	if X is 20 do;
+		set Z to X * Y;
+	else;
+		incr Y;
+	next;
+	if Z is not 4 do;
+		set F to F * 5;
+	next;
+end;
